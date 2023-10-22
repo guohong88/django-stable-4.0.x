@@ -80,15 +80,15 @@ class TemplateCommand(BaseCommand):
         )
 
     def handle(self, app_or_project, name, target=None, **options):
-        self.app_or_project = app_or_project
+        self.app_or_project = app_or_project   # 区分创建app还是project
         self.a_or_an = "an" if app_or_project == "app" else "a"
         self.paths_to_remove = []
         self.verbosity = options["verbosity"]
 
-        self.validate_name(name)
+        self.validate_name(name)    # 验证name是否合法
 
         # if some directory is given, make sure it's nicely expanded
-        if target is None:
+        if target is None:      # 如果没有指定目录，则默认为当前目录#
             top_dir = os.path.join(os.getcwd(), name)
             try:
                 os.makedirs(top_dir)
@@ -144,7 +144,7 @@ class TemplateCommand(BaseCommand):
         # Setup a stub settings environment for template rendering
         if not settings.configured:
             settings.configure()
-            django.setup()
+            django.setup()  # Import settings values 重点介绍
 
         template_dir = self.handle_template(options["template"], base_subdir)
         prefix_length = len(template_dir) + 1
@@ -190,9 +190,9 @@ class TemplateCommand(BaseCommand):
                 # Only render the Python files, as we don't want to
                 # accidentally render Django templates files
                 if new_path.endswith(extensions) or filename in extra_files:
-                    with open(old_path, encoding="utf-8") as template_file:
+                    with open(old_path, encoding="utf-8") as template_file: # 读取模板文件
                         content = template_file.read()
-                    template = Engine().from_string(content)
+                    template = Engine().from_string(content)  # django4.0内置模板 引擎生成模板对象
                     content = template.render(context)
                     with open(new_path, "w", encoding="utf-8") as new_file:
                         new_file.write(content)
@@ -257,7 +257,7 @@ class TemplateCommand(BaseCommand):
                 )
             )
         # Check it's a valid directory name.
-        if not name.isidentifier():
+        if not name.isidentifier():   # python3标志符
             raise CommandError(
                 "'{name}' is not a valid {app} {type}. Please make sure the "
                 "{type} is a valid identifier.".format(
