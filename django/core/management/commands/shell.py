@@ -18,7 +18,7 @@ class Command(BaseCommand):
     shells = ["ipython", "bpython", "python"]
 
     def add_arguments(self, parser):
-        parser.add_argument( # 当个命令 独特选项
+        parser.add_argument(    # 当个命令 独特选项
             "--no-startup",
             action="store_true",
             help=(
@@ -44,17 +44,17 @@ class Command(BaseCommand):
             ),
         )
 
-    def ipython(self, options):
+    def ipython(self, options):   # 交互模式1
         from IPython import start_ipython
 
         start_ipython(argv=[])
 
-    def bpython(self, options):
+    def bpython(self, options):     # 交互模式2
         import bpython
 
         bpython.embed()
 
-    def python(self, options):
+    def python(self, options):  # 交互模式3
         import code
 
         # Set up a dictionary to serve as the environment for the shell.
@@ -98,17 +98,17 @@ class Command(BaseCommand):
                 print("Failed calling sys.__interactivehook__")
                 traceback.print_exc()
 
-        # Set up tab completion for objects imported by $PYTHONSTARTUP or
+        #   代码补全 Set up tab completion for objects imported by $PYTHONSTARTUP or
         # ~/.pythonrc.py.
         try:
             import readline
             import rlcompleter
-
+            # 代码提示以及补全
             readline.set_completer(rlcompleter.Completer(imported_objects).complete)
         except ImportError:
             pass
 
-        # Start the interactive interpreter.
+        # 进入开始交互 Start the interactive interpreter.
         code.interact(local=imported_objects)
 
     def handle(self, **options):
@@ -130,7 +130,7 @@ class Command(BaseCommand):
         available_shells = (
             [options["interface"]] if options["interface"] else self.shells
         )
-
+        # 遍历交互终端 [ipython, bpython, python
         for shell in available_shells:
             try:
                 return getattr(self, shell)(options)

@@ -13,7 +13,7 @@ class Command(TemplateCommand):
 
     def handle(self, **options):
         project_name = options.pop("name")
-        target = options.pop("directory")
+        target = options.pop("directory")   # {'verbosity': 1, 'settings': None, 'pythonpath': None, 'traceback': False, 'no_color': False, 'force_color': False, 'directory': None, 'template': None, 'extensions': ['py'], 'files': []}
 
         # Create a random SECRET_KEY to put it in the main settings.
         options["secret_key"] = SECRET_KEY_INSECURE_PREFIX + get_random_secret_key()

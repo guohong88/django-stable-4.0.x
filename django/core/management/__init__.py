@@ -417,7 +417,7 @@ class ManagementUtility:
 
             # In all other cases, django.setup() is required to succeed.
             else:
-                django.setup()  #  关键步骤
+                django.setup()  #  关键步骤  调用apps.populate 设置self.apps_ready = True
 
         self.autocomplete()
 

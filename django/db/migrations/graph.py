@@ -1,31 +1,31 @@
 from functools import total_ordering
 
 from django.db.migrations.state import ProjectState
+from django.db.migrations.exceptions import CircularDependencyError, NodeNotFoundError # 改为绝对引用
+# from .exceptions import CircularDependencyError, NodeNotFoundError
 
-from .exceptions import CircularDependencyError, NodeNotFoundError
-
-
+# 迁移类图状关系的维护 MigrationGraph--关键类(节点之前依赖关系维护 节点为单位操作)
 @total_ordering
 class Node:
-    """
+    """ 一个node 代表一个迁移文件
     A single node in the migration graph. Contains direct links to adjacent
     nodes in either direction.
     """
 
     def __init__(self, key):
-        self.key = key
-        self.children = set()
-        self.parents = set()
-
+        self.key = key          # key为元祖 (app, migration_name)
+        self.children = set()   # 子节点
+        self.parents = set()    # 父节点
+    #  判断node是否为相等
     def __eq__(self, other):
         return self.key == other
-
+    # 判断node是否小于other
     def __lt__(self, other):
         return self.key < other
-
+    # hash值获取
     def __hash__(self):
         return hash(self.key)
-
+    # 获取item
     def __getitem__(self, item):
         return self.key[item]
 
@@ -33,18 +33,18 @@ class Node:
         return str(self.key)
 
     def __repr__(self):
-        return "<%s: (%r, %r)>" % (self.__class__.__name__, self.key[0], self.key[1])
-
+        return "<%s: (%r, %r)>" % (self.__class__.__name__, self.key[0], self.key[1])   # 应用名-迁移文件名
+    # 添加节点操作
     def add_child(self, child):
         self.children.add(child)
-
+    # 添加父节点
     def add_parent(self, parent):
         self.parents.add(parent)
 
 
 class DummyNode(Node):
-    """
-    A node that doesn't correspond to a migration file on disk.
+    """ 虚拟节点(不对应迁移文件)     # 迁移之后 虚拟节点会被移除 否则抛出异常
+    A node that doesn't correspond to a migration file on disk. # 一个节点不对应磁盘上的迁移文件。
     (A squashed migration that was removed, for example.)
 
     After the migration graph is processed, all dummy nodes should be removed.
@@ -59,7 +59,7 @@ class DummyNode(Node):
     def raise_error(self):
         raise NodeNotFoundError(self.error_message, self.key, origin=self.origin)
 
-
+#
 class MigrationGraph:
     """
     Represent the digraph of all migrations in a project.
@@ -84,22 +84,22 @@ class MigrationGraph:
     """
 
     def __init__(self):
-        self.node_map = {}
-        self.nodes = {}
+        self.node_map = {}  # 映射关系 “k1 ”: Node(k1)  k1为元祖 (app, migration_name)
+        self.nodes = {}     # 字典
 
     def add_node(self, key, migration):
         assert key not in self.node_map
         node = Node(key)
-        self.node_map[key] = node
-        self.nodes[key] = migration
+        self.node_map[key] = node       # 迁移文件
+        self.nodes[key] = migration     # 迁移类抽象
 
     def add_dummy_node(self, key, origin, error_message):
         node = DummyNode(key, origin, error_message)
         self.node_map[key] = node
-        self.nodes[key] = None
+        self.nodes[key] = None  # 无迁移文件
 
     def add_dependency(self, migration, child, parent, skip_validation=False):
-        """
+        """ 添加依赖关系(父子关系) parent-父节点  skip_validation-是否校验虚拟节点
         This may create dummy nodes if they don't yet exist. If
         `skip_validation=True`, validate_consistency() should be called
         afterward.
@@ -119,10 +119,10 @@ class MigrationGraph:
         self.node_map[child].add_parent(self.node_map[parent])
         self.node_map[parent].add_child(self.node_map[child])
         if not skip_validation:
-            self.validate_consistency()
+            self.validate_consistency()     # 手动校验报错(存在虚拟节点-需要报错)
 
     def remove_replaced_nodes(self, replacement, replaced):
-        """
+        """ 移除列表中的节点 replaced 用节点replacement替换
         Remove each of the `replaced` nodes (when they exist). Any
         dependencies that were referencing them are changed to reference the
         `replacement` node instead.
@@ -130,17 +130,17 @@ class MigrationGraph:
         # Cast list of replaced keys to set to speed up lookup later.
         replaced = set(replaced)
         try:
-            replacement_node = self.node_map[replacement]
+            replacement_node = self.node_map[replacement]   # 获取替换节点 replacement_node
         except KeyError as err:
             raise NodeNotFoundError(
                 "Unable to find replacement node %r. It was either never added"
                 " to the migration graph, or has been removed." % (replacement,),
                 replacement,
             ) from err
-        for replaced_key in replaced:
+        for replaced_key in replaced:                                # 遍历需要移除节点 -replacement_node
             self.nodes.pop(replaced_key, None)
-            replaced_node = self.node_map.pop(replaced_key, None)
-            if replaced_node:
+            replaced_node = self.node_map.pop(replaced_key, None)    # 需要删除节点replaced_node
+            if replaced_node:   # 存在需要删除节点 修改父子引用关系
                 for child in replaced_node.children:
                     child.parents.remove(replaced_node)
                     # We don't want to create dependencies between the replaced
@@ -148,7 +148,7 @@ class MigrationGraph:
                     # self-referencing on the replacement node at a later iteration.
                     if child.key not in replaced:
                         replacement_node.add_child(child)
-                        child.add_parent(replacement_node)
+                        child.add_parent(replacement_node)  # 添加依赖关系
                 for parent in replaced_node.parents:
                     parent.children.remove(replaced_node)
                     # Again, to avoid self-referencing.
@@ -157,7 +157,7 @@ class MigrationGraph:
                         parent.add_child(replacement_node)
 
     def remove_replacement_node(self, replacement, replaced):
-        """
+        """ 和上面方法相反 使用replaced 节点替换replacement节点
         The inverse operation to `remove_replaced_nodes`. Almost. Remove the
         replacement node `replacement` and remap its child nodes to `replaced`
         - the list of nodes it would have replaced. Don't remap its parent
@@ -194,11 +194,11 @@ class MigrationGraph:
             # assume the replaced nodes already have the correct ancestry.
 
     def validate_consistency(self):
-        """Ensure there are no dummy nodes remaining in the graph."""
+        """存在虚拟节点直接报错 Ensure there are no dummy nodes remaining in the graph."""
         [n.raise_error() for n in self.node_map.values() if isinstance(n, DummyNode)]
 
     def forwards_plan(self, target):
-        """
+        """ k1 → k2→ k3→ k4→ k5 eg: target=k3  返回 k4 k5
         Given a node, return a list of which previous nodes (dependencies) must
         be applied, ending with the node itself. This is the list you would
         follow if applying the migrations to a database.
@@ -208,7 +208,7 @@ class MigrationGraph:
         return self.iterative_dfs(self.node_map[target])
 
     def backwards_plan(self, target):
-        """
+        """k1 → k2→ k3→ k4→ k5 eg: target=k3  返回 k1 k2 k3
         Given a node, return a list of which dependent nodes (dependencies)
         must be unapplied, ending with the node itself. This is the list you
         would follow if removing the migrations from a database.
@@ -218,7 +218,7 @@ class MigrationGraph:
         return self.iterative_dfs(self.node_map[target], forwards=False)
 
     def iterative_dfs(self, start, forwards=True):
-        """Iterative depth-first search for finding dependencies."""
+        """ # TODO dfs算法查找 指定元素啊(正反向查找) Iterative depth-first search for finding dependencies."""
         visited = []
         visited_set = set()
         stack = [(start, False)]
@@ -238,20 +238,18 @@ class MigrationGraph:
         return visited
 
     def root_nodes(self, app=None):
-        """
+        """ # 获取根节点  key为元祖 (app, migration_name)
         Return all root nodes - that is, nodes with no dependencies inside
         their app. These are the starting point for an app.
         """
         roots = set()
         for node in self.nodes:
-            if all(key[0] != node[0] for key in self.node_map[node].parents) and (
-                not app or app == node[0]
-            ):
+            if all(key[0] != node[0] for key in self.node_map[node].parents) and (not app or app == node[0]):
                 roots.add(node)
         return sorted(roots)
 
     def leaf_nodes(self, app=None):
-        """
+        """ # 获取叶子节点
         Return all leaf nodes - that is, nodes with no dependents in their app.
         These are the "most current" version of an app's schema.
         Having more than one per app is technically an error, but one that
@@ -267,7 +265,7 @@ class MigrationGraph:
         return sorted(leaves)
 
     def ensure_not_cyclic(self):
-        # Algo from GvR:
+        # TODO Algo from GvR: 循环依赖检查 k1 → k2→ k3→ k1 会报错 (算法 Algo from GvR)
         # https://neopythonic.blogspot.com/2009/01/detecting-cycles-in-directed-graph.html
         todo = set(self.nodes)
         while todo:
@@ -298,12 +296,12 @@ class MigrationGraph:
         nodes, edges = self._nodes_and_edges()
         return "<%s: nodes=%s, edges=%s>" % (self.__class__.__name__, nodes, edges)
 
-    def _nodes_and_edges(self):
+    def _nodes_and_edges(self):     # 返回节点数和边数
         return len(self.nodes), sum(
             len(node.parents) for node in self.node_map.values()
         )
 
-    def _generate_plan(self, nodes, at_end):
+    def _generate_plan(self, nodes, at_end):    # 返回搜索链
         plan = []
         for node in nodes:
             for migration in self.forwards_plan(node):
@@ -312,7 +310,7 @@ class MigrationGraph:
         return plan
 
     def make_state(self, nodes=None, at_end=True, real_apps=None):
-        """
+        """ 返回ProjectState对象
         Given a migration node or nodes, return a complete ProjectState for it.
         If at_end is False, return the state before the migration has run.
         If nodes is not provided, return the overall most current project state.
@@ -329,5 +327,21 @@ class MigrationGraph:
             project_state = self.nodes[node].mutate_state(project_state, preserve=False)
         return project_state
 
-    def __contains__(self, node):
+    def __contains__(self, node):   # 判断节点是否在图中
         return node in self.nodes
+
+
+if __name__ == '__main__':
+    graph = MigrationGraph()
+    for i in range(1, 7):
+        graph.add_node(f"k{i}", f"m{i}")
+    for i in range(1, 4):
+        graph.add_dependency(f"m{i}", f"k{i}", f"k{i+1}")
+    graph.add_dependency(f"m5", f"k5", f"k6")
+    #  关系 k1 → k2 →k3 → k4  k5→  k6
+    print(graph.forwards_plan("k3"))
+    graph.ensure_not_cyclic()   # 循环依赖检查
+    # 添加循环
+    graph.remove_replaced_nodes('k1', ['k6'])
+    graph.ensure_not_cyclic()  # 循环依赖检查
+    pass

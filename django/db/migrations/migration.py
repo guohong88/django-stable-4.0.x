@@ -6,6 +6,7 @@ from .exceptions import IrreversibleError
 
 class Migration:
     """
+    # 翻译 迁移类抽象类
     The base class for all migrations.
 
     Migration files will import this from django.db.migrations.Migration
@@ -22,16 +23,16 @@ class Migration:
     Graph as instances, having been initialized with their app label and name.
     """
 
-    # Operations to apply during this migration, in order.
+    # 该类迁移期间要应用的操作(新建表,调整字段大小,类型,顺序)Operations to apply during this migration, in order. 。
     operations = []
 
     # Other migrations that should be run before this migration.
-    # Should be a list of (app, migration_name).
+    # 上层依赖(迁移之前其他类先执行) Should be a list of (app, migration_name).
     dependencies = []
 
     # Other migrations that should be run after this one (i.e. have
     # this migration added to their dependencies). Useful to make third-party
-    # apps' migrations run after your AUTH_USER replacement, for example.
+    # 之前运行迁移 apps' migrations run after your AUTH_USER replacement, for example.
     run_before = []
 
     # Migration names in this app that this migration replaces. If this is
@@ -43,14 +44,14 @@ class Migration:
     # --fake-initial if the table or fields already exist. If None, check if
     # the migration has any dependencies to determine if there are dependencies
     # to tell if db introspection needs to be done. If True, always perform
-    # introspection. If False, never perform introspection.
-    initial = None
+    # 其他参数 introspection. If False, never perform introspection.
+    initial = None  # 是否开始迁移
 
     # Whether to wrap the whole migration in a transaction. Only has an effect
     # on database backends which support transactional DDL.
     atomic = True
 
-    def __init__(self, name, app_label):
+    def __init__(self, name, app_label):    # key("drf","0001_inital.py")
         self.name = name
         self.app_label = app_label
         # Copy dependencies & other attrs as we might mutate them at runtime
@@ -60,6 +61,7 @@ class Migration:
         self.replaces = list(self.__class__.replaces)
 
     def __eq__(self, other):
+        """判断两个迁移是否相等"""
         return (
             isinstance(other, Migration)
             and self.name == other.name
@@ -76,7 +78,7 @@ class Migration:
         return hash("%s.%s" % (self.app_label, self.name))
 
     def mutate_state(self, project_state, preserve=True):
-        """
+        """ 迁移过程中的状态变化
         Take a ProjectState and return a new one with the migration's
         operations applied to it. Preserve the original object state by
         default and return a mutated state from a copy.
@@ -90,7 +92,7 @@ class Migration:
         return new_state
 
     def apply(self, project_state, schema_editor, collect_sql=False):
-        """
+        """ todo 迁移执行-核心方法
         Take a project_state representing all migrations prior to this one
         and a schema_editor for a live database and apply the migration
         in a forwards order.
@@ -134,7 +136,7 @@ class Migration:
         return project_state
 
     def unapply(self, project_state, schema_editor, collect_sql=False):
-        """
+        """todo 撤销迁移-核心方法
         Take a project_state representing all migrations prior to this one
         and a schema_editor for a live database and apply the migration
         in a reverse order.
@@ -233,3 +235,46 @@ class SwappableTuple(tuple):
 def swappable_dependency(value):
     """Turn a setting value into a dependency."""
     return SwappableTuple((value.split(".", 1)[0], "__first__"), value)
+
+
+"""
+迁移文件使用示例:
+0001_initial.py --文件1
+
+import apps.common.models
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='PubName',
+            fields=[
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('pubname', models.CharField(max_length=255, unique=True, verbose_name='名称')),
+            ],
+        ),
+        migrations.CreateModel(
+            name='Book',
+            fields=[
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=30, unique=True, verbose_name='书名')),
+                ('price', models.DecimalField(decimal_places=2, max_digits=7, verbose_name='定价')),
+                ('retail_price', models.DecimalField(decimal_places=2, default=apps.common.models.Book.default_price, max_digits=7, verbose_name='零售价')),
+                ('pub', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='common.pubname')),
+            ],
+            options={
+                'verbose_name': '书籍信息表',
+                'verbose_name_plural': '书籍信息表',
+                'db_table': 'tbl_book',
+            },
+        ),
+    ]
+"""

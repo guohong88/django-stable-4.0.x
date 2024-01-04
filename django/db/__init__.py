@@ -33,12 +33,12 @@ __all__ = [
     "DJANGO_VERSION_PICKLE_KEY",
 ]
 
-connections = ConnectionHandler()
+connections = ConnectionHandler()   # 默认数据库连接对象
 
 router = ConnectionRouter()
 
 # For backwards compatibility. Prefer connections['default'] instead.
-connection = ConnectionProxy(connections, DEFAULT_DB_ALIAS)
+connection = ConnectionProxy(connections, DEFAULT_DB_ALIAS)     #DEFAULT_DB_ALIAS = "default"
 
 
 # Register an event to reset saved queries when a Django request is started.

@@ -60,7 +60,7 @@ class LazySettings(LazyObject):
         Load the settings module pointed to by the environment variable. This
         is used the first time settings are needed, if the user hasn't
         configured settings manually.
-        """
+        """     # 步骤1 导入环境变量
         settings_module = os.environ.get(ENVIRONMENT_VARIABLE)
         if not settings_module:
             desc = ("setting %s" % name) if name else "settings"

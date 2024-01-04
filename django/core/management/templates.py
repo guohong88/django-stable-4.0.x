@@ -91,7 +91,7 @@ class TemplateCommand(BaseCommand):
         if target is None:      # 如果没有指定目录，则默认为当前目录#
             top_dir = os.path.join(os.getcwd(), name)
             try:
-                os.makedirs(top_dir)
+                os.makedirs(top_dir)    #  递归创建目录 os.makedirs(top_dir) exist_ok=False]
             except FileExistsError:
                 raise CommandError("'%s' already exists" % top_dir)
             except OSError as e:
@@ -106,7 +106,7 @@ class TemplateCommand(BaseCommand):
                     "exist, please create it first." % top_dir
                 )
 
-        extensions = tuple(handle_extensions(options["extensions"]))
+        extensions = tuple(handle_extensions(options["extensions"]))    # .py
         extra_files = []
         excluded_directories = [".git", "__pycache__"]
         for file in options["files"]:
@@ -145,25 +145,25 @@ class TemplateCommand(BaseCommand):
         if not settings.configured:
             settings.configure()
             django.setup()  # Import settings values 重点介绍
-
+        #   '~django-stable-4.0.x\\django\\conf\\project_template'
         template_dir = self.handle_template(options["template"], base_subdir)
-        prefix_length = len(template_dir) + 1
-
+        prefix_length = len(template_dir) + 1   # 根目录长度
+        # 目录遍历+文件遍历
         for root, dirs, files in os.walk(template_dir):
             path_rest = root[prefix_length:]
             relative_dir = path_rest.replace(base_name, name)
-            if relative_dir:
+            if relative_dir:    #
                 target_dir = os.path.join(top_dir, relative_dir)
                 os.makedirs(target_dir, exist_ok=True)
 
-            for dirname in dirs[:]:
+            for dirname in dirs[:]:     # 移除 .开头或则 __pycache__ 目录
                 if "exclude" not in options:
                     if dirname.startswith(".") or dirname == "__pycache__":
                         dirs.remove(dirname)
                 elif dirname in excluded_directories:
                     dirs.remove(dirname)
-
-            for filename in files:
+            # 文件拷贝
+            for filename in files:  # 根目录下文件
                 if filename.endswith((".pyo", ".pyc", ".py.class")):
                     # Ignore some files as they cause various breakages.
                     continue
@@ -171,12 +171,12 @@ class TemplateCommand(BaseCommand):
                 new_path = os.path.join(
                     top_dir, relative_dir, filename.replace(base_name, name)
                 )
-                for old_suffix, new_suffix in self.rewrite_template_suffixes:
+                for old_suffix, new_suffix in self.rewrite_template_suffixes:   #   (".py-tpl", "。py")
                     if new_path.endswith(old_suffix):
                         new_path = new_path[: -len(old_suffix)] + new_suffix
                         break  # Only rewrite once
 
-                if os.path.exists(new_path):
+                if os.path.exists(new_path):    # 如果文件已经存在，则报错
                     raise CommandError(
                         "%s already exists. Overlaying %s %s into an existing "
                         "directory won't replace conflicting files."
@@ -187,23 +187,23 @@ class TemplateCommand(BaseCommand):
                         )
                     )
 
-                # Only render the Python files, as we don't want to
+                        #  1. python文件需要模板渲染 Only render the Python files, as we don't want to
                 # accidentally render Django templates files
                 if new_path.endswith(extensions) or filename in extra_files:
-                    with open(old_path, encoding="utf-8") as template_file: # 读取模板文件
+                    with open(old_path, encoding="utf-8") as template_file:     # 读取模板文件
                         content = template_file.read()
                     template = Engine().from_string(content)  # django4.0内置模板 引擎生成模板对象
                     content = template.render(context)
                     with open(new_path, "w", encoding="utf-8") as new_file:
                         new_file.write(content)
-                else:
-                    shutil.copyfile(old_path, new_path)
+                else:   #  2 其他文件直接拷贝
+                    shutil.copyfile(old_path, new_path)   # 拷贝文件
 
                 if self.verbosity >= 2:
                     self.stdout.write("Creating %s" % new_path)
                 try:
-                    shutil.copymode(old_path, new_path)
-                    self.make_writeable(new_path)
+                    shutil.copymode(old_path, new_path)     # 文件权限复制
+                    self.make_writeable(new_path)   # 文件可写
                 except OSError:
                     self.stderr.write(
                         "Notice: Couldn't set permission bits on %s. You're "

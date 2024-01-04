@@ -21,4 +21,4 @@ def setup(set_prefix=True):
         set_script_prefix(
             "/" if settings.FORCE_SCRIPT_NAME is None else settings.FORCE_SCRIPT_NAME
         )
-    apps.populate(settings.INSTALLED_APPS)
+    apps.populate(settings.INSTALLED_APPS)      #  通过apps对象的populate方法，将settings.INSTALLED_APPS中的app注册到apps对象中

@@ -88,7 +88,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         database = options["database"]
         if not options["skip_checks"]:
-            self.check(databases=[database])
+            self.check(databases=[database])   # 检查数据库
 
         self.verbosity = options["verbosity"]
         self.interactive = options["interactive"]

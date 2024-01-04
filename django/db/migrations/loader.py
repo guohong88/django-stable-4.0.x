@@ -18,7 +18,7 @@ MIGRATIONS_MODULE_NAME = "migrations"
 
 
 class MigrationLoader:
-    """
+    """ # 通过MigrationLoader对象，可以加载app中的migrations目录下的所有迁移文件
     Load migration files from disk and their status from the database.
 
     Migration files are expected to live in the "migrations" directory of
@@ -45,21 +45,21 @@ class MigrationLoader:
     def __init__(
         self,
         connection,
-        load=True,
+        load=True,  # 是否加载迁移图 默认开启
         ignore_no_migrations=False,
         replace_migrations=True,
     ):
-        self.connection = connection
-        self.disk_migrations = None
-        self.applied_migrations = None
+        self.connection = connection    # 传入数据库连接对象
+        self.disk_migrations = None     # 磁盘迁移文件
+        self.applied_migrations = None  # 完成的迁移文件
         self.ignore_no_migrations = ignore_no_migrations
         self.replace_migrations = replace_migrations
         if load:
-            self.build_graph()
+            self.build_graph()  # 构建迁移图
 
     @classmethod
     def migrations_module(cls, app_label):
-        """
+        """ # 翻译  settings.MIGRATION_MODULE 导入模块(本地setting文件不存在就 导入global_setting文件)
         Return the path to the migrations module for the specified app_label
         and a boolean indicating if the module is specified in
         settings.MIGRATION_MODULE.
@@ -72,52 +72,53 @@ class MigrationLoader:
 
     def load_disk(self):
         """Load the migrations from all INSTALLED_APPS from disk."""
-        self.disk_migrations = {}
-        self.unmigrated_apps = set()
-        self.migrated_apps = set()
+        self.disk_migrations = {}       #
+        self.unmigrated_apps = set()    # 未迁移的app
+        self.migrated_apps = set()      # 已经迁移的app
         for app_config in apps.get_app_configs():
-            # Get the migrations module directory
+            # Get the migrations module directory 导入格式 ("drf.migrations",False)
             module_name, explicit = self.migrations_module(app_config.label)
             if module_name is None:
                 self.unmigrated_apps.add(app_config.label)
                 continue
-            was_loaded = module_name in sys.modules
+            was_loaded = module_name in sys.modules     # 判断模块是否导入过
             try:
-                module = import_module(module_name)
-            except ModuleNotFoundError as e:
+                module = import_module(module_name)    # 导入模块importlib.import_module
+            except ModuleNotFoundError as e:           # 模块不存在处理
                 if (explicit and self.ignore_no_migrations) or (
                     not explicit and MIGRATIONS_MODULE_NAME in e.name.split(".")
                 ):
                     self.unmigrated_apps.add(app_config.label)
                     continue
-                raise
+                raise   # 如果不是上述情况，抛出异常
             else:
                 # Module is not a package (e.g. migrations.py).
-                if not hasattr(module, "__path__"):
+                if not hasattr(module, "__path__"):     # 判断是否path属性
                     self.unmigrated_apps.add(app_config.label)
                     continue
                 # Empty directories are namespaces. Namespace packages have no
-                # __file__ and don't use a list for __path__. See
-                # https://docs.python.org/3/reference/import.html#namespace-packages
+                #  翻译  __file__ and don't use a list for __path__. See
+                #  https://docs.python.org/3/reference/import.html#namespace-packages
                 if getattr(module, "__file__", None) is None and not isinstance(
                     module.__path__, list
                 ):
                     self.unmigrated_apps.add(app_config.label)
                     continue
-                # Force a reload if it's already loaded (tests need this)
-                if was_loaded:
+                # 强制重新导入Force a reload if it's already loaded (tests need this)
+                if was_loaded:  # 如果模块已经导入过，重新导入
                     reload(module)
-            self.migrated_apps.add(app_config.label)
-            migration_names = {
-                name
+            self.migrated_apps.add(app_config.label)  #
+            # 应用迁移模块下的所有文件
+            migration_names = {   # eg:django.contrib.auth.migrations
+                name    # iter_modules 遍历模块下的所有文件(如: 0001_inital.py)
                 for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
                 if not is_pkg and name[0] not in "_~"
             }
-            # Load migrations
-            for migration_name in migration_names:
+            # Load migrations(
+            for migration_name in migration_names:  # ["0001_inital.py"]
                 migration_path = "%s.%s" % (module_name, migration_name)
                 try:
-                    migration_module = import_module(migration_path)
+                    migration_module = import_module(migration_path)  # 导入0001_inital.py文件
                 except ImportError as e:
                     if "bad magic number" in str(e):
                         raise ImportError(
@@ -126,17 +127,17 @@ class MigrationLoader:
                         ) from e
                     else:
                         raise
-                if not hasattr(migration_module, "Migration"):
+                if not hasattr(migration_module, "Migration"):   # 判断是否有Migration类
                     raise BadMigrationError(
                         "Migration %s in app %s has no Migration class"
                         % (migration_name, app_config.label)
                     )
                 self.disk_migrations[
-                    app_config.label, migration_name
+                    app_config.label, migration_name   # key("drf","0001_inital.py")
                 ] = migration_module.Migration(
                     migration_name,
                     app_config.label,
-                )
+                )   # 实例化类 Migration
 
     def get_migration(self, app_label, name_prefix):
         """Return the named migration or raise NodeNotFoundError."""
@@ -197,7 +198,7 @@ class MigrationLoader:
         raise ValueError("Dependency on unknown app: %s" % key[0])
 
     def add_internal_dependencies(self, key, migration):
-        """
+        """ 不是frist 就会依赖于上一个迁移文件(__first_根节点)
         Internal dependencies need to be added first to ensure `__first__`
         dependencies find the correct root node.
         """
@@ -208,14 +209,14 @@ class MigrationLoader:
 
     def add_external_dependencies(self, key, migration):
         for parent in migration.dependencies:
-            # Skip internal dependencies
+            # Skip internal dependencies 跳过内部依赖
             if key[0] == parent[0]:
                 continue
             parent = self.check_key(parent, key[0])
             if parent is not None:
                 self.graph.add_dependency(migration, key, parent, skip_validation=True)
         for child in migration.run_before:
-            child = self.check_key(child, key[0])
+            child = self.check_key(child, key[0])   #  rub_before的迁移节点都是他子节点
             if child is not None:
                 self.graph.add_dependency(migration, child, key, skip_validation=True)
 
@@ -225,7 +226,7 @@ class MigrationLoader:
         You'll need to rebuild the graph if you apply migrations. This isn't
         usually a problem as generally migration stuff runs in a one-shot process.
         """
-        # Load disk data
+        # Load disk data  #翻译 加载磁盘数据
         self.load_disk()
         # Load database data
         if self.connection is None:
@@ -238,17 +239,17 @@ class MigrationLoader:
         self.graph = MigrationGraph()
         self.replacements = {}
         for key, migration in self.disk_migrations.items():
-            self.graph.add_node(key, migration)
+            self.graph.add_node(key, migration)     # 添加所有节点
             # Replacing migrations.
-            if migration.replaces:
+            if migration.replaces:      # 替换节点
                 self.replacements[key] = migration
         for key, migration in self.disk_migrations.items():
             # Internal (same app) dependencies.
-            self.add_internal_dependencies(key, migration)
+            self.add_internal_dependencies(key, migration)  # 添加内部依赖
         # Add external dependencies now that the internal ones have been resolved.
         for key, migration in self.disk_migrations.items():
-            self.add_external_dependencies(key, migration)
-        # Carry out replacements where possible and if enabled.
+            self.add_external_dependencies(key, migration)  # 添加外部依赖
+        # 执行替换 Carry out replacements where possible and if enabled.
         if self.replace_migrations:
             for key, migration in self.replacements.items():
                 # Get applied status of each of this migration's replacement
@@ -271,7 +272,7 @@ class MigrationLoader:
                     # partially applied. Remove it from the graph and remap
                     # dependencies to it (#25945).
                     self.graph.remove_replacement_node(key, migration.replaces)
-        # Ensure the graph is consistent.
+        # Ensure the graph is consistent. # 翻译 确保图形一致(移除无效节点)
         try:
             self.graph.validate_consistency()
         except NodeNotFoundError as exc:
@@ -302,17 +303,16 @@ class MigrationLoader:
                         exc.node,
                     ) from exc
             raise
-        self.graph.ensure_not_cyclic()
+        self.graph.ensure_not_cyclic()  # 循环检测
 
     def check_consistent_history(self, connection):
-        """
-        Raise InconsistentMigrationHistory if any applied migrations have
-        unapplied dependencies.
+        """ # 迁移记录做检查 --如果有任何应用的迁移具有未应用的依赖项，则引发InconsistentMigrationHistory。
+        Raise InconsistentMigrationHistory if any applied migrations have unapplied dependencies.
         """
         recorder = MigrationRecorder(connection)
-        applied = recorder.applied_migrations()
-        for migration in applied:
-            # If the migration is unknown, skip it.
+        applied = recorder.applied_migrations()    # todo 迁移记录
+        for migration in applied:   # 遍历迁移记录
+            # If the migration is unknown, skip it. 如果迁移未知，则跳过它。迁移文件没有数据库有
             if migration not in self.graph.nodes:
                 continue
             for parent in self.graph.node_map[migration].parents:
@@ -324,6 +324,7 @@ class MigrationLoader:
                             m in applied for m in self.replacements[parent].replaces
                         ):
                             continue
+                    # parent not in self.replacements # parent 不在替换列表里面
                     raise InconsistentMigrationHistory(
                         "Migration {}.{} is applied before its dependency "
                         "{}.{} on database '{}'.".format(
@@ -336,7 +337,8 @@ class MigrationLoader:
                     )
 
     def detect_conflicts(self):
-        """
+        """ app最后迁移存在多个叶子节点
+        # 翻译
         Look through the loaded graph and detect any conflicts - apps
         with more than one leaf migration. Return a dict of the app labels
         that conflict with the migration names that conflict.

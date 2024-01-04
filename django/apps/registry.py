@@ -41,7 +41,7 @@ class Apps:
         self.stored_app_configs = []
 
         # Whether the registry is populated.
-        self.apps_ready = self.models_ready = self.ready = False
+        self.apps_ready = self.models_ready = self.ready = False    # 初始化值为False
         # For the autoreloader.
         self.ready_event = threading.Event()
 
@@ -59,7 +59,7 @@ class Apps:
             self.populate(installed_apps)
 
     def populate(self, installed_apps=None):
-        """
+        """  self.apps_ready = True 方法的作用是初始化app_configs和all_models两个属性
         Load application configurations and models.
 
         Import each application module and then each model module.
@@ -134,7 +134,7 @@ class Apps:
             # If "not ready" is due to unconfigured settings, accessing
             # INSTALLED_APPS raises a more helpful ImproperlyConfigured
             # exception.
-            settings.INSTALLED_APPS
+            settings.INSTALLED_APPS    # 步骤2 导入settings.py app件
             raise AppRegistryNotReady("Apps aren't loaded yet.")
 
     def check_models_ready(self):
@@ -433,4 +433,6 @@ class Apps:
             function(model)
 
 
-apps = Apps(installed_apps=None)
+apps = Apps(installed_apps=None)    # 定义app对象
+
+# apps.populate(settings.INSTALLED_APPS)  注册app对象

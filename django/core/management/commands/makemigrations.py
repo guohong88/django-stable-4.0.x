@@ -19,7 +19,7 @@ from django.db.migrations.state import ProjectState
 from django.db.migrations.utils import get_migration_name_timestamp
 from django.db.migrations.writer import MigrationWriter
 
-
+"""makemigrations.py"""
 class Command(BaseCommand):
     help = "Creates new migration(s) for apps."
 
@@ -67,28 +67,28 @@ class Command(BaseCommand):
             "--check",
             action="store_true",
             dest="check_changes",
-            help="Exit with a non-zero status if model changes are missing migrations.",
+            help="Exit with a non-zero status if model changes are missing migrations.", # 翻译 退出并返回非零状态，如果模型更改缺少迁移。
         )
 
     @no_translations
     def handle(self, *app_labels, **options):
-        self.verbosity = options["verbosity"]
-        self.interactive = options["interactive"]
-        self.dry_run = options["dry_run"]
-        self.merge = options["merge"]
+        self.verbosity = options["verbosity"]       # -v 是否打印详细日志
+        self.interactive = options["interactive"]   # --noinput 是否交互式
+        self.dry_run = options["dry_run"]           # --dry-run 是否生成迁移文件
+        self.merge = options["merge"]               # --merge   合并迁移文件
         self.empty = options["empty"]
-        self.migration_name = options["name"]
-        if self.migration_name and not self.migration_name.isidentifier():
+        self.migration_name = options["name"]       # -n 迁移文件名自定义
+        if self.migration_name and not self.migration_name.isidentifier(): # 判断是否是合法的python标识符 例如："12".isidentifier()  False
             raise CommandError("The migration name must be a valid Python identifier.")
         self.include_header = options["include_header"]
-        check_changes = options["check_changes"]
+        check_changes = options["check_changes"] # --check 退出并返回非零状态，如果模型更改缺少迁移。
 
-        # Make sure the app they asked for exists
+        # Make sure the app they asked for exists # 确保app应用程序都存在
         app_labels = set(app_labels)
         has_bad_labels = False
         for app_label in app_labels:
             try:
-                apps.get_app_config(app_label)
+                apps.get_app_config(app_label)  # 获取app配置(检验app是否存在
             except LookupError as err:
                 self.stderr.write(str(err))
                 has_bad_labels = True
@@ -97,7 +97,7 @@ class Command(BaseCommand):
 
         # Load the current graph state. Pass in None for the connection so
         # the loader doesn't try to resolve replaced migrations from DB.
-        loader = MigrationLoader(None, ignore_no_migrations=True)
+        loader = MigrationLoader(None, ignore_no_migrations=True)   # 构建迁移图对象
 
         # Raise an error if any migrations are applied before their dependencies.
         consistency_check_labels = {config.label for config in apps.get_app_configs()}
@@ -106,17 +106,17 @@ class Command(BaseCommand):
             connections if settings.DATABASE_ROUTERS else [DEFAULT_DB_ALIAS]
         )
         for alias in sorted(aliases_to_check):
-            connection = connections[alias]
+            connection = connections[alias]   # ["DEFAULT"]
             if connection.settings_dict["ENGINE"] != "django.db.backends.dummy" and any(
                 # At least one model must be migrated to the database.
                 router.allow_migrate(
                     connection.alias, app_label, model_name=model._meta.object_name
                 )
                 for app_label in consistency_check_labels
-                for model in apps.get_app_config(app_label).get_models()
+                for model in apps.get_app_config(app_label).get_models()  # 获取app下定义模型model都抓取过来
             ):
                 try:
-                    loader.check_consistent_history(connection)
+                    loader.check_consistent_history(connection)  # 检查迁移历史是否一致
                 except OperationalError as error:
                     warnings.warn(
                         "Got an error checking a consistent migration history "
@@ -125,7 +125,7 @@ class Command(BaseCommand):
                     )
         # Before anything else, see if there's conflicting apps and drop out
         # hard if there are any and they don't want to merge
-        conflicts = loader.detect_conflicts()
+        conflicts = loader.detect_conflicts()   # 检查是否有冲突 (多个叶子节点)
 
         # If app_labels is specified, filter out conflicting migrations for
         # unspecified apps.
@@ -147,13 +147,13 @@ class Command(BaseCommand):
             )
 
         # If they want to merge and there's nothing to merge, then politely exit
-        if self.merge and not conflicts:
+        if self.merge and not conflicts:    # 如果有合并、无冲突那么就退出
             self.stdout.write("No conflicts detected to merge.")
             return
 
         # If they want to merge and there is something to merge, then
         # divert into the merge code
-        if self.merge and conflicts:
+        if self.merge and conflicts:    # 如果有merge、有冲突那么就调用handle_merge
             return self.handle_merge(loader, conflicts)
 
         if self.interactive:
@@ -164,7 +164,7 @@ class Command(BaseCommand):
             questioner = NonInteractiveMigrationQuestioner(
                 specified_apps=app_labels, dry_run=self.dry_run
             )
-        # Set up autodetector
+        # Set up autodetector 自动检测器  todo
         autodetector = MigrationAutodetector(
             loader.project_state(),
             ProjectState.from_apps(apps),
@@ -188,7 +188,7 @@ class Command(BaseCommand):
             return
 
         # Detect changes
-        changes = autodetector.changes(
+        changes = autodetector.changes(  # 建议是否有改变
             graph=loader.graph,
             trim_to_apps=app_labels or None,
             convert_apps=app_labels or None,
@@ -271,9 +271,9 @@ class Command(BaseCommand):
         Handles merging together conflicted migrations interactively,
         if it's safe; otherwise, advises on how to fix it.
         """
-        if self.interactive:
+        if self.interactive:  # 如果是交互式
             questioner = InteractiveMigrationQuestioner()
-        else:
+        else:   # 如果不是交互式
             questioner = MigrationQuestioner(defaults={"ask_merge": True})
 
         for app_label, migration_names in conflicts.items():

@@ -660,7 +660,7 @@ class BaseDatabaseWrapper:
 
     def schema_editor(self, *args, **kwargs):
         """
-        Return a new instance of this backend's SchemaEditor.
+        Return a new instance of this backend's SchemaEditor. # 翻译：返回此后端的SchemaEditor的新实例。
         """
         if self.SchemaEditorClass is None:
             raise NotImplementedError(
